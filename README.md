@@ -1,7 +1,15 @@
 ## Nifty50 active stocks selector
 
 This project involves creating a stock analysis and portfolio creation system using Python with yfinance library. It also incorporates web scraping to obtain real-time data of the current 50 stocks in the Nifty50 index from Wikipedia. The system is designed to create a dynamic portfolio of Nifty50 stocks based on a monthly active stock selection strategy that selects stocks with positive returns only. The project also includes a web application to graphically present the performance of the selected stocks and the Nifty50 index as a benchmark.
+
 Tools utilized: Python(yfinance, pandas, streamlit, beautifulsoup), Streamlit.io
+
+
+![image1](./img1.png)
+![image2](./img2.png)
+![image3](./img3.png)
+![image4](./img4.png)
+
 
 ## 🚀 Quick Start
 
