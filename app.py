@@ -1,6 +1,5 @@
 import yfinance as yf
 import pandas as pd
-import numpy as np
 import requests
 from bs4 import BeautifulSoup
 from io import StringIO
@@ -19,10 +18,9 @@ class Stock:
         try:
             data = yf.download(self.symbol, self.start_date, self.end_date)
         except:
-            print(f"No data found for {self.symbol} between {self.start_date} and {self.end_date}")
-            return
-        
-        data.index = data.index.strftime('%Y-%m-%d')
+            st.write(f"No data found for {self.symbol} between {self.start_date} and {self.end_date}")
+            return None
+        # data.index = data.index.strftime('%Y-%m-%d')
         data['Daily Return'] = ((data['Close'] - data['Open']) / data['Open']) * 100
 
         data['1Day Return'] = data['Close'].pct_change().fillna(0)
@@ -34,14 +32,14 @@ class Stock:
             prev_days_value += data['1Day Return'].loc[index]
             values_column.append(temp)
         data['Compound Return'] = values_column
-        return data
+        return data[['Open', 'Close', 'Daily Return', '1Day Return', 'Compound Return']]
         
     def CurPrice(self, cur_date):
         if cur_date in self.price_data.index:
             price = self.price_data.loc[cur_date]
         else:
-            price = "--"
-
+            price = 0
+            st.write(f"This date {cur_date} not present in our data.")
         return price
     
     def NDayRet(self, n, cur_date):
@@ -54,9 +52,9 @@ class Stock:
                 n_day_return = ((price_today - price_n_days_ago) / price_n_days_ago) * 100
                 return n_day_return
             else:
-                print(f"Reduce the value of n from {n}, or change start date to that date to your cur_date{cur_date}.")
+                st.write(f"Reduce the value of n from {n}, or change start date to that date to your cur_date{cur_date}.")
         else:
-            print(f"Either market was closed on {cur_date}, or the given date is not present in our record.")
+            st.write(f"Either market was closed on {cur_date}, or the given date is not present in our record.")
 
     def DailyRet(self, cur_date):
         if cur_date in self.stock_data.index:
@@ -65,7 +63,7 @@ class Stock:
             returns = ((close - open)/open) * 100
             return returns
         else:
-            print(f"Either market was closed on {cur_date}, or the given date is not present in our record.")
+            st.write(f"Either market was closed on {cur_date}, or the given date is not present in our record.")
 
     def Last30daysPrice(self, cur_date):
         if cur_date in self.price_data.index:
@@ -74,7 +72,7 @@ class Stock:
                 price_30_days_ago = self.price_data.iloc[cur_row - 30]
                 return price_30_days_ago
         else:
-            print(f"Either market was closed on {cur_date}, or the given date is not present in our record.")
+            st.write(f"Either market was closed on {cur_date}, or the given date is not present in our record.")
 
 
 def get_benchmark(start_date, end_date):
@@ -86,17 +84,16 @@ def get_constituents(start_date, end_date):
         url = 'https://en.wikipedia.org/wiki/NIFTY_50'
         response = requests.get(url)
     except:
-        print("Error: Failed to retrieve the webpage.")
+        st.write("Error: Failed to retrieve the webpage.")
 
     try:
         soup = BeautifulSoup(response.text, 'html.parser')
         table = soup.find('table', {'class': 'wikitable sortable'})
     except:
-        print("Error: Failed to retrieve the constituents table.")
+        st.write("Error: Failed to retrieve the constituents table.")
 
     df = pd.read_html(StringIO(str(table)))[0]
     df = df[["Company Name", "Symbol"]]
-
 
     constituents_data = {}
     for index, row in df.iterrows():
@@ -108,37 +105,36 @@ def get_active_strategy(constituents_data, cur_date):
     active_stocks = []
     active_stocks_returns = pd.DataFrame()
 
-    # Get the first day and last day of previous month - only active days
-    first_day_prev_month = pd.Timestamp(cur_date) + pd.offsets.MonthBegin(-2)
-    end_day_prev_month = pd.Timestamp(cur_date) + pd.offsets.MonthEnd(-1)
-
-    # Generate all trading days of the previous month
-    prev_month_dates = pd.date_range(start=first_day_prev_month, end=end_day_prev_month, freq='B')
-    prev_month_dates = prev_month_dates.strftime('%Y-%m-%d')
+    prev_month = pd.Timestamp(cur_date).month - 1
     
     for company, stock in constituents_data.items():
-        if stock.stock_data.loc[prev_month_dates[-1], 'Close'] > stock.stock_data.loc[prev_month_dates[0], 'Close']:
+        prev_month_rows = stock.stock_data[stock.stock_data.index.month == prev_month]
+        if stock.stock_data.loc[prev_month_rows.index.max(), 'Close'] > stock.stock_data.loc[prev_month_rows.index.min(), 'Close']:
             active_stocks.append(company)
             active_stocks_returns[company] = stock.stock_data['Compound Return']
-            
-            num_columns = len(active_stocks_returns.columns)
-            active_stocks_returns['Average'] = active_stocks_returns.sum(axis=1) / num_columns
+
+    if len(active_stocks) == 0:
+        return ['No positve stock'], None
+    else:
+        num_columns = len(active_stocks_returns.columns)
+        active_stocks_returns['Average'] = active_stocks_returns.sum(axis=1) / num_columns
 
     return active_stocks, active_stocks_returns['Average']
 
-# def plot_chart(returns1, returns2):
-#     # Choosing common dates only
-#     common_dates = returns1.index.intersection(returns2.index)
-#     benchmark_filtered, stocks_filtered = returns1.loc[common_dates], returns2.loc[common_dates]
+def plot_ichart(returns1, returns2):
+    # Choosing common dates only
+    common_dates = returns1.index.intersection(returns2.index)
+    benchmark_filtered, stocks_filtered = returns1.loc[common_dates], returns2.loc[common_dates]
 
-#     plt.figure(figsize=(10,6))
-#     plt.plot(benchmark_filtered.index, benchmark_filtered.values, label='Benchmark')
-#     plt.plot(stocks_filtered.index, stocks_filtered.values, label='Stock selection strategy')
-#     plt.legend()
-#     plt.xlabel('Date')
-#     plt.xticks(rotation = 90)
-#     plt.ylabel('Returns')
-#     plt.show()
+    plt.figure(figsize=(10,6))
+    plt.plot(benchmark_filtered.index, benchmark_filtered.values, label='Benchmark')
+    plt.plot(stocks_filtered.index, stocks_filtered.values, label='Stock selection strategy')
+    plt.legend()
+    plt.xlabel('Date')
+    plt.xticks(rotation = 90)
+    plt.ylabel('Returns')
+    # plt.show()
+    st.pyplot(plt)
 
 def plot_chart(returns1, returns2):
    # Choosing common dates only
@@ -149,34 +145,49 @@ def plot_chart(returns1, returns2):
 
 
 
-# Streamlit app
 def main():
     st.title('Stock Performance Analysis')
     start_date = str(st.date_input("Enter start date in format YYYY-MM-DD: ")).split()[0]
     end_date = str(st.date_input("Enter end date in format YYYY-MM-DD: ")).split()[0]
+
     if start_date == end_date:
         st.write(f'Please change {start_date} that is start date to get more insights.')
         return
+    elif start_date > end_date:
+        st.write(f"Please change the start date. It should come before end date.")
+        return
+
     amount = int(st.number_input("Enter the amount: "))
+    if amount <= 0:
+        st.write("Enter valid amount.")
+        return
 
     cur_date = str(st.date_input("Enter any date to select that month's strategy: ")).split()[0]
-
+    if cur_date <= start_date or cur_date >= end_date:
+        st.write("Select different month.")
+        return
+    
     benchmark = get_benchmark(start_date, end_date)
     index_constituents = get_constituents(start_date, end_date)
 
     benchmark_returns = benchmark.stock_data['Compound Return']
     selected_stocks, selected_stocks_returns = get_active_strategy(index_constituents, cur_date)
+    if selected_stocks[0] != 'No positve stock':
+        strategic_returns = selected_stocks_returns
+    else:
+        selected_stocks_returns = pd.Series(0, index = benchmark_returns.index)
 
-    # print(selected_stocks)
+    st.subheader('Comparing Returns: ')
+    plot_chart(benchmark_returns, strategic_returns)
+
     st.subheader("Stocks that are selected for the given month's strategy: ")
     st.write(selected_stocks)
 
-    benchmark_returns = benchmark.stock_data['Compound Return'] * amount + benchmark.stock_data['Compound Return']
-    strategic_returns = selected_stocks_returns * amount + selected_stocks_returns
-
-    st.subheader('Comparing benchmark and strategy: ')
-    plot_chart(benchmark_returns, strategic_returns)
-    
-    
+    strategic_returns = selected_stocks_returns * amount + amount
+    benchmark_returns = benchmark.stock_data['Compound Return'] * amount + amount
+    st.subheader('Invested amount: ')
+    plot_ichart(benchmark_returns, strategic_returns)
+        
+        
 if __name__ == '__main__':
     main()
