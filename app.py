@@ -106,6 +106,8 @@ def get_active_strategy(constituents_data, cur_date):
     active_stocks_returns = pd.DataFrame()
 
     prev_month = pd.Timestamp(cur_date).month - 1
+    if prev_month == 0:
+        prev_month = 12 
     
     for company, stock in constituents_data.items():
         prev_month_rows = stock.stock_data[stock.stock_data.index.month == prev_month]
@@ -151,7 +153,7 @@ def main():
     end_date = str(st.date_input("Enter end date in format YYYY-MM-DD: ")).split()[0]
 
     if start_date == end_date:
-        st.write(f'Please change {start_date} that is start date to get more insights.')
+        st.write(f'Please change start date that is {start_date} to get more insights.')
         return
     elif start_date > end_date:
         st.write(f"Please change the start date. It should come before end date.")
@@ -159,12 +161,12 @@ def main():
 
     amount = int(st.number_input("Enter the amount: "))
     if amount <= 0:
-        st.write("Enter valid amount.")
+        st.write("Invest more amount ;)")
         return
 
     cur_date = str(st.date_input("Enter any date to select that month's strategy: ")).split()[0]
-    if cur_date <= start_date or cur_date >= end_date:
-        st.write("Select different month.")
+    if cur_date <= start_date or cur_date > end_date:
+        st.write("Select different date and it should be between start and end date and also make sure it is not the month of start date.")
         return
     
     benchmark = get_benchmark(start_date, end_date)
